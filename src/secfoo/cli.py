@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -53,6 +53,28 @@ CONFIG_EXAMPLE_PATH = Path(__file__).parent / "config.example.toml"
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _validate_date(value: Optional[str]) -> Optional[str]:
+    """Typer callback for the `--expires-at` / `--discovered-at` style
+    options that are documented as YYYY-MM-DD: rejects anything that
+    doesn't parse as that shape at input time.
+
+    Without this, an unparseable value (a typo, a different format) was
+    accepted and stored as-is, then silently ignored by every downstream
+    consumer that parses it with `datetime.fromisoformat` (the aging
+    buckets in storage/repository.py, the past-due check in
+    web/top_findings.py) -- the exception/finding looked normal in
+    `list`/`show` but its expiry could never be tracked, detected as
+    past-due, or surfaced on the dashboard.
+    """
+    if value is None:
+        return None
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        raise typer.BadParameter(f"'{value}' is not a valid date -- expected YYYY-MM-DD.") from None
+    return value
 
 
 # Derived from the skill definition files rather than hand-listed, so
@@ -609,7 +631,9 @@ def exception_create(
     title: str = typer.Option(..., "--title", help="Short description of what's being accepted."),
     justification: str = typer.Option(..., "--justification", help="Why this risk is being accepted."),
     granted_by: str = typer.Option(..., "--granted-by", help="Who approved this exception."),
-    expires_at: str = typer.Option(..., "--expires-at", help="Expiry date, YYYY-MM-DD."),
+    expires_at: str = typer.Option(
+        ..., "--expires-at", help="Expiry date, YYYY-MM-DD.", callback=_validate_date
+    ),
     standard_or_control: Optional[str] = typer.Option(
         None, "--control", help="CCM domain code or standard clause this exception covers, e.g. IAM or 'SOC 2 CC6.1'."
     ),
@@ -689,7 +713,9 @@ def exception_show(exception_id: int) -> None:
 def exception_update(
     exception_id: int,
     status: Optional[str] = typer.Option(None, "--status", help="active or revoked."),
-    expires_at: Optional[str] = typer.Option(None, "--expires-at"),
+    expires_at: Optional[str] = typer.Option(
+        None, "--expires-at", help="Expiry date, YYYY-MM-DD.", callback=_validate_date
+    ),
     justification: Optional[str] = typer.Option(None, "--justification"),
 ) -> None:
     """Update an exception -- e.g. revoke it, or extend its expiry."""
@@ -730,7 +756,9 @@ def miss_create(
         None, "--project", "-p", help="Public GitHub repo URL or local directory. Defaults to the current directory."
     ),
     title: str = typer.Option(..., "--title", help="What was found."),
-    discovered_at: str = typer.Option(..., "--discovered-at", help="When it was found, YYYY-MM-DD."),
+    discovered_at: str = typer.Option(
+        ..., "--discovered-at", help="When it was found, YYYY-MM-DD.", callback=_validate_date
+    ),
     description: Optional[str] = typer.Option(None, "--description"),
     discovered_by: Optional[str] = typer.Option(None, "--discovered-by", help="Who/what found it (incident, pen test, ...)."),
     run: Optional[str] = typer.Option(None, "--run", help="Run UUID of the threat model that should have caught this, if known."),
@@ -821,7 +849,9 @@ def accept_create(
     title: str = typer.Option(..., "--title", help="Short description of the threat being accepted."),
     justification: str = typer.Option(..., "--justification", help="Why this risk is being accepted."),
     accepted_by: str = typer.Option(..., "--accepted-by", help="Who is accepting this risk."),
-    expires_at: Optional[str] = typer.Option(None, "--expires-at", help="Optional review-by date, YYYY-MM-DD."),
+    expires_at: Optional[str] = typer.Option(
+        None, "--expires-at", help="Optional review-by date, YYYY-MM-DD.", callback=_validate_date
+    ),
     run: Optional[str] = typer.Option(None, "--run", help="Run UUID this threat came from, if known."),
 ) -> None:
     """Record a human risk acceptance for one threat from a Threat Register.
@@ -898,7 +928,9 @@ def accept_show(acceptance_id: int) -> None:
 def accept_update(
     acceptance_id: int,
     status: Optional[str] = typer.Option(None, "--status", help="active or revoked."),
-    expires_at: Optional[str] = typer.Option(None, "--expires-at"),
+    expires_at: Optional[str] = typer.Option(
+        None, "--expires-at", help="Review-by date, YYYY-MM-DD.", callback=_validate_date
+    ),
     justification: Optional[str] = typer.Option(None, "--justification"),
 ) -> None:
     """Update a threat acceptance -- e.g. revoke it, or extend its review date."""
