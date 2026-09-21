@@ -104,7 +104,9 @@ the [CLI reference](https://secfoo.com/docs/cli.html) for more.
 - **Concurrent by default**: multiple `--skill` flags run at the same
   time, not one after another.
 - **Bring your own agent**: Claude Code, Cursor, Antigravity, or Gemini
-  CLI — pick whichever you already use and trust.
+  CLI — pick whichever you already use and trust. Want to wire up a
+  different CLI, or your own LangGraph/LiteLLM pipeline? See
+  [Adding or changing an agent adapter](CONTRIBUTING.md#adding-or-changing-an-agent-adapter).
 - **Open source CLI**: MIT licensed.
 
 ## Activity catalog
