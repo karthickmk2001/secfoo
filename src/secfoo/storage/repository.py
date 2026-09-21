@@ -251,7 +251,6 @@ class RunRepository:
         medium_count: int = 0,
         low_count: int = 0,
         info_count: int = 0,
-        cost_usd: float | None = None,
         assessment_id: int | None = None,
         input_tokens: int | None = None,
         output_tokens: int | None = None,
@@ -269,12 +268,6 @@ class RunRepository:
                 status, exit_code, started_at, finished_at, duration_seconds, report_path,
                 critical_count, high_count, medium_count, low_count, info_count, assessment_id,
                 input_tokens, output_tokens, cost_usd,
-            "critical_count, high_count, medium_count, low_count, info_count, cost_usd, assessment_id) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                run_uuid, project_id, skill_id, skill_name, agent_id, json.dumps(confluence_urls),
-                status, exit_code, started_at, finished_at, duration_seconds, report_path,
-                critical_count, high_count, medium_count, low_count, info_count, cost_usd, assessment_id,
             ),
         )
         self._conn.commit()
@@ -303,7 +296,6 @@ class RunRepository:
             "report_path = ?, prompt_path = ?, stderr_excerpt = ?, critical_count = ?, high_count = ?, "
             "medium_count = ?, low_count = ?, info_count = ?, input_tokens = ?, output_tokens = ?, "
             "cost_usd = ? WHERE run_uuid = ?",
-            "medium_count = ?, low_count = ?, info_count = ?, cost_usd = ? WHERE run_uuid = ?",
             (
                 status,
                 exit_code,

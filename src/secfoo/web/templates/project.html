@@ -43,7 +43,6 @@
         <td><span class="badge {{ run.status | status_badge }}">{{ run.status }}</span></td>
         <td>{{ run.duration_seconds | fmt_duration }}</td>
         <td>{{ run.cost_usd | fmt_cost }}</td>
-        <td>{{ ('$%.4f' % run.cost_usd) if run.cost_usd is not none else '-' }}</td>
       </tr>
       {% endfor %}
     </tbody>

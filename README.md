@@ -41,9 +41,8 @@ secfoo run --skill security-architecture-review --agent claude
 ```
 
 You'll need an agent CLI already installed and authenticated — Claude
-Code, Cursor, Antigravity, or Gemini CLI (`--agent claude|agent|agy|gemini`)
+Code, Cursor, Antigravity, Gemini CLI, or Codex CLI (`--agent claude|agent|agy|gemini|codex`)
 — or just a model API key with the built-in `api` agent (below).
-Code, Cursor, Antigravity, Gemini CLI, or Codex CLI (`--agent claude|agent|agy|gemini|codex`).
 On a real terminal, that first run prompts for a project name and
 application ID, then browse every result in the dashboard:
 
@@ -80,6 +79,8 @@ Every run records tokens and cost where the agent reports them (`api`,
 secfoo cost                          # by agent
 secfoo cost --by skill --since 2026-09-01
 secfoo cost --project checkout
+```
+
 Secfoo also includes a built-in LangGraph agent whose model calls are routed
 through LiteLLM. Configure the provider key and model in the environment;
 credentials are never stored in the repository:
