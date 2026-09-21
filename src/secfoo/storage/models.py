@@ -38,6 +38,7 @@ class RunRecord:
     info_count: int = 0
     cloud_synced_at: str | None = None
     project_display_name: str | None = None
+    cost_usd: float | None = None
 
 
 @dataclass(frozen=True)

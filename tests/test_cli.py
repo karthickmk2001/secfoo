@@ -8,6 +8,7 @@ from secfoo.cli import app
 from secfoo.runner import RunOutcome
 from secfoo.settings import Defaults, MCPServerConfig, SecfooConfig
 from secfoo.skills.loader import load_all_skills
+from secfoo.storage.models import ProjectRecord
 
 runner = CliRunner()
 
@@ -200,10 +201,10 @@ def test_run_command_shows_per_skill_progress(monkeypatch):
     assert "Security Architecture Review" in result.stdout
 
 
-def test_agents_command_lists_all_four_adapters():
+def test_agents_command_lists_all_five_adapters():
     result = runner.invoke(app, ["agents"])
     assert result.exit_code == 0
-    for agent_id in ["claude", "agent", "agy", "gemini"]:
+    for agent_id in ["claude", "agent", "agy", "gemini", "secfoo"]:
         assert agent_id in result.stdout
 
 
@@ -222,6 +223,60 @@ class _FakeRepoEmpty:
 
     def get_run(self, run_uuid):
         return None
+
+    def total_cost_usd(self, *, project_id=None):
+        return 0.0
+
+
+class _FakeRepoWithCost:
+    def __init__(self, *, total, projects=()):
+        self._total = total
+        self._projects = list(projects)
+        self.requested_project_id = "not-called"
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def list_projects(self):
+        return self._projects
+
+    def total_cost_usd(self, *, project_id=None):
+        self.requested_project_id = project_id
+        return self._total
+
+
+def test_cost_command_prints_total_spend(monkeypatch):
+    fake = _FakeRepoWithCost(total=1.2345)
+    monkeypatch.setattr("secfoo.cli.RunRepository", lambda *a, **kw: fake)
+    result = runner.invoke(app, ["cost"])
+    assert result.exit_code == 0
+    assert "$1.2345" in result.stdout
+    assert fake.requested_project_id is None
+
+
+def test_cost_command_filters_by_matching_project(monkeypatch):
+    project = ProjectRecord(
+        id=7, identifier="https://github.com/acme/app", display_name="Acme App",
+        kind="github", first_seen_at="t1", last_run_at="t2",
+    )
+    fake = _FakeRepoWithCost(total=0.5, projects=[project])
+    monkeypatch.setattr("secfoo.cli.RunRepository", lambda *a, **kw: fake)
+    result = runner.invoke(app, ["cost", "--project", "acme"])
+    assert result.exit_code == 0
+    assert "$0.5000" in result.stdout
+    assert fake.requested_project_id == 7
+
+
+def test_cost_command_warns_when_project_has_no_match(monkeypatch):
+    fake = _FakeRepoWithCost(total=0.0, projects=[])
+    monkeypatch.setattr("secfoo.cli.RunRepository", lambda *a, **kw: fake)
+    result = runner.invoke(app, ["cost", "--project", "nonexistent"])
+    assert result.exit_code == 0
+    assert "No project matches" in result.stdout
+    assert fake.requested_project_id == "not-called"
 
 
 def test_list_command_no_runs(monkeypatch):

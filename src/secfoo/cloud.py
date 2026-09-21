@@ -145,6 +145,7 @@ def push_run(
             "started_at": run.started_at,
             "finished_at": run.finished_at,
             "duration_seconds": run.duration_seconds,
+            "cost_usd": run.cost_usd,
             "confluence_urls": run.confluence_urls,
         },
         "report_markdown": report_markdown,

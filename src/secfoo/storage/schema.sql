@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS runs (
     info_count        INTEGER NOT NULL DEFAULT 0,
     -- Set once `secfoo cloud` has pushed this run to the enterprise
     -- portal. NULL means never synced (offline, or no `cloud login` yet).
-    cloud_synced_at   TEXT
+    cloud_synced_at   TEXT,
+    cost_usd          REAL
 );
 
 -- Files manually uploaded to an assessment (AI-BOM inventories, or other
