@@ -22,7 +22,7 @@ Context-based security architectural assessment orchestrator: pick skills, targe
 Pick one or more security **activities** (see the catalog below), point them
 at a **target** (a public GitHub URL, a local directory, plus optional
 Confluence links for extra context), choose which coding-agent CLI runs them
-(Claude Code, Cursor, Antigravity, or Gemini CLI), and browse every
+(Claude Code, Cursor, Antigravity, Gemini CLI, or Codex CLI), and browse every
 assessment ever run, across every project, in a local web dashboard.
 
 > This repository is the open-source CLI and local dashboard. secfoo's
@@ -41,7 +41,7 @@ secfoo run --skill security-architecture-review --agent claude
 ```
 
 You'll need an agent CLI already installed and authenticated — Claude
-Code, Cursor, Antigravity, or Gemini CLI (`--agent claude|agent|agy|gemini`).
+Code, Cursor, Antigravity, Gemini CLI, or Codex CLI (`--agent claude|agent|agy|gemini|codex`).
 On a real terminal, that first run prompts for a project name and
 application ID, then browse every result in the dashboard:
 
@@ -103,8 +103,8 @@ the [CLI reference](https://secfoo.com/docs/cli.html) for more.
   record every rescan.
 - **Concurrent by default**: multiple `--skill` flags run at the same
   time, not one after another.
-- **Bring your own agent**: Claude Code, Cursor, Antigravity, or Gemini
-  CLI — pick whichever you already use and trust.
+- **Bring your own agent**: Claude Code, Cursor, Antigravity, Gemini
+  CLI, or Codex CLI — pick whichever you already use and trust.
 - **Open source CLI**: MIT licensed.
 
 ## Activity catalog

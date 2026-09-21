@@ -201,10 +201,10 @@ def test_run_command_shows_per_skill_progress(monkeypatch):
     assert "Security Architecture Review" in result.stdout
 
 
-def test_agents_command_lists_all_five_adapters():
+def test_agents_command_lists_all_adapters():
     result = runner.invoke(app, ["agents"])
     assert result.exit_code == 0
-    for agent_id in ["claude", "agent", "agy", "gemini", "secfoo"]:
+    for agent_id in ["claude", "agent", "agy", "gemini", "secfoo", "codex"]:
         assert agent_id in result.stdout
 
 
@@ -417,3 +417,13 @@ def test_mcp_sync_unsupported_agent_exits_nonzero(monkeypatch):
     )
     result = runner.invoke(app, ["mcp", "sync", "--agent", "agy"])
     assert result.exit_code == 1
+
+
+def test_mcp_sync_codex_is_reported_unsupported(monkeypatch):
+    servers = [MCPServerConfig(name="s", command="npx")]
+    monkeypatch.setattr(
+        "secfoo.cli.load_config", lambda: SecfooConfig(defaults=Defaults(), mcp_servers=servers)
+    )
+    result = runner.invoke(app, ["mcp", "sync", "--agent", "codex"])
+    assert result.exit_code == 1
+    assert "codex" in result.output

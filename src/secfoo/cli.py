@@ -95,6 +95,7 @@ class AgentId(str, Enum):
     ANTIGRAVITY = "agy"
     GEMINI = "gemini"
     SECFOO = "secfoo"
+    CODEX = "codex"
 
 
 class DepthId(str, Enum):

@@ -157,5 +157,6 @@ def sync(agent_id: str, servers: list[MCPServerConfig]) -> list[SyncResult]:
     raise ValueError(
         f"secfoo mcp sync isn't supported for {agent_id!r}. "
         f"claude uses --mcp-config automatically on every run (no sync needed); "
-        f"agy doesn't expose any MCP configuration mechanism via its CLI yet."
+        f"agy doesn't expose any MCP configuration mechanism via its CLI yet; "
+        f"codex isn't wired up for it yet (it reads ~/.codex/config.toml directly)."
     )
