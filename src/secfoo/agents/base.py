@@ -21,6 +21,35 @@ from typing import ClassVar, Literal
 Status = Literal["success", "failed", "timeout", "binary_not_found"]
 
 
+def _kill_process_tree(pid: int, *, posix: bool = os.name == "posix") -> None:
+    """Kill `pid` and its descendants after a timeout.
+
+    os.killpg/os.getpgid only exist on POSIX (start_new_session=True above
+    puts the child in its own process group there). Windows has no process
+    group equivalent reachable from the stdlib, so `taskkill /T` (kill
+    process tree) is used instead -- both are needed to reliably contain
+    Cursor's documented `agent -p` hang bug if it spawns any grandchildren;
+    killing just the direct child (e.g. subprocess.run's own timeout
+    handling, or Popen.kill()) is not enough.
+
+    `posix` defaults to the real platform and only exists so tests can
+    exercise both branches on a single OS -- monkeypatching os.name itself
+    is not safe here since pytest's own traceback machinery reads it too.
+    """
+    try:
+        if posix:
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
+        else:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+    except (ProcessLookupError, OSError):
+        pass
+
+
 @dataclass
 class AgentResult:
     agent: str
@@ -83,10 +112,9 @@ class AgentAdapter(ABC):
         started = time.monotonic()
 
         # Driven via Popen (rather than subprocess.run) so that on timeout we
-        # can killpg() the whole process group. subprocess.run's own timeout
-        # handling only kills the direct child, which is not enough to
-        # reliably contain Cursor's documented `agent -p` hang bug if it
-        # spawns any grandchildren.
+        # can kill the whole process tree via _kill_process_tree() -- see
+        # its docstring for why subprocess.run's own timeout handling isn't
+        # enough on its own.
         proc = subprocess.Popen(
             cmd,
             cwd=workdir,
@@ -115,10 +143,7 @@ class AgentAdapter(ABC):
                 cost_usd=usage.cost_usd,
             )
         except subprocess.TimeoutExpired:
-            try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+            _kill_process_tree(proc.pid)
             stdout, stderr = proc.communicate()
             duration = time.monotonic() - started
             return AgentResult(
