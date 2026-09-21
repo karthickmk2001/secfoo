@@ -383,7 +383,7 @@ def show(
 
     console.print(f"[bold]{record.skill_name}[/] via {record.agent_id} — status: {record.status}")
     if record.report_path and Path(record.report_path).exists():
-        console.print(Path(record.report_path).read_text())
+        console.print(Path(record.report_path).read_text(encoding="utf-8", errors="replace"))
     else:
         console.print("[yellow]No report content available for this run.[/]")
 
@@ -430,10 +430,28 @@ def cost(
     since: Optional[str] = typer.Option(
         None, "--since", help="Only count runs started on or after this date, YYYY-MM-DD.", callback=_validate_date
     ),
+    project: Optional[str] = typer.Option(
+        None, "--project", "-p", help="Only count one project (name/URL substring)."
+    ),
 ) -> None:
     """Show AI spend (tokens and cost) across past runs."""
     with RunRepository() as repo:
-        rows = repo.cost_summary(group_by=by.value, since=since)
+        project_id = None
+        if project:
+            needle = project.lower()
+            matches = [
+                p for p in repo.list_projects()
+                if needle in p.display_name.lower() or needle in p.identifier.lower()
+            ]
+            if not matches:
+                console.print(f"[yellow]No project matches {project!r}.[/]")
+                return
+            if len(matches) > 1:
+                names = ", ".join(p.display_name for p in matches)
+                err_console.print(f"[red]{project!r} matches several projects ({names}) -- be more specific.[/]")
+                raise typer.Exit(code=1)
+            project_id = matches[0].id
+        rows = repo.cost_summary(group_by=by.value, since=since, project_id=project_id)
 
     if not rows:
         console.print("No runs found.")
@@ -1175,7 +1193,7 @@ def config_init(
         err_console.print(f"[yellow]{CONFIG_PATH} already exists.[/] Use --force to overwrite it.")
         raise typer.Exit(code=1)
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(CONFIG_EXAMPLE_PATH.read_text())
+    CONFIG_PATH.write_text(CONFIG_EXAMPLE_PATH.read_text(encoding="utf-8"), encoding="utf-8")
     console.print(f"Wrote {CONFIG_PATH}. Edit it, then run [bold]secfoo mcp list[/] to confirm.")
 
 

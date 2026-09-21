@@ -301,3 +301,24 @@ def test_sync_run_does_not_mark_synced_on_push_failure(tmp_path, fake_urlopen):
 
     assert repo.get_run(run_uuid).cloud_synced_at is None
     repo.close()
+
+
+def test_sync_run_includes_ai_usage_and_cost(tmp_path, fake_urlopen):
+    calls = fake_urlopen(response={"server_run_id": "u1", "status": "recorded"})
+    repo = RunRepository(db_path=tmp_path / "db.sqlite")
+    project_id = repo.upsert_project("https://github.com/acme/app", "acme/app", "github")
+    run_uuid = repo.create_run(
+        project_id=project_id, skill_id="sast", skill_name="SAST", agent_id="api", confluence_urls=[],
+    )
+    repo.complete_run(
+        run_uuid, status="success", exit_code=0, duration_seconds=1.0, report_path=None,
+        prompt_path=None, stderr_excerpt=None, input_tokens=1000, output_tokens=200, cost_usd=0.25,
+    )
+
+    cloud.sync_run(repo, run_uuid, cloud.CloudConfig(api_key="k", portal_url="https://portal.example.com"))
+
+    run = json.loads(calls[0].data.decode("utf-8"))["run"]
+    assert run["input_tokens"] == 1000
+    assert run["output_tokens"] == 200
+    assert run["cost_usd"] == 0.25
+    repo.close()

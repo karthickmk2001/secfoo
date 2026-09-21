@@ -15,6 +15,16 @@ def no_keys(monkeypatch):
         monkeypatch.delenv(key, raising=False)
 
 
+GOOD_REPORT = "# SAST Report\n\n## Summary\nAll good.\n**Overall risk rating:** Low."
+
+
+def _response(content, prompt_tokens=1200, completion_tokens=300):
+    return types.SimpleNamespace(
+        choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=content))],
+        usage=types.SimpleNamespace(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens),
+    )
+
+
 def _fake_litellm(monkeypatch, *, completion=None, cost=0.0123):
     module = types.SimpleNamespace()
     module.calls = []
@@ -23,10 +33,7 @@ def _fake_litellm(monkeypatch, *, completion=None, cost=0.0123):
         module.calls.append(kwargs)
         if completion is not None:
             return completion(**kwargs)
-        return types.SimpleNamespace(
-            choices=[types.SimpleNamespace(message=types.SimpleNamespace(content="# SAST Report"))],
-            usage=types.SimpleNamespace(prompt_tokens=1200, completion_tokens=300),
-        )
+        return _response(GOOD_REPORT)
 
     def _completion_cost(completion_response):
         if isinstance(cost, Exception):
@@ -83,12 +90,14 @@ def test_run_success_returns_report_and_usage(tmp_path, monkeypatch):
     result = ApiAdapter().run("Review this.", workdir=tmp_path)
 
     assert result.status == "success"
-    assert result.raw_report == "# SAST Report"
+    assert result.raw_report == GOOD_REPORT
     assert result.input_tokens == 1200
     assert result.output_tokens == 300
     assert result.cost_usd == pytest.approx(0.0123)
+    assert len(fake.calls) == 1  # a complete report needs no reformat
     call = fake.calls[0]
     assert call["model"] == "openai/test-model"
+    assert call["num_retries"] == api.NUM_RETRIES
     content = call["messages"][0]["content"]
     assert content.startswith("Review this.")
     assert "===== FILE: app.py =====" in content
@@ -139,3 +148,33 @@ def test_run_without_litellm_installed_says_how_to_install_it(tmp_path, monkeypa
 
     assert result.status == "failed"
     assert "secfoo[api]" in result.stderr
+
+
+def test_incomplete_report_is_reformatted_once_without_resending_source(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    (tmp_path / "app.py").write_text("print('hi')", encoding="utf-8")
+    replies = iter([_response("### [HIGH] SQL injection in app.py"), _response(GOOD_REPORT, 400, 100)])
+    fake = _fake_litellm(monkeypatch, completion=lambda **kwargs: next(replies))
+
+    result = ApiAdapter().run("Review this.", workdir=tmp_path)
+
+    assert result.status == "success"
+    assert result.raw_report == GOOD_REPORT
+    assert len(fake.calls) == 2
+    fix_request = fake.calls[1]["messages"][0]["content"]
+    assert "SQL injection in app.py" in fix_request  # the draft is passed back
+    assert "===== FILE: app.py =====" not in fix_request  # the source is not
+    assert result.input_tokens == 1600  # usage and cost add up across both calls
+    assert result.output_tokens == 400
+    assert result.cost_usd == pytest.approx(0.0246)
+
+
+def test_reformat_is_attempted_only_once(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    fake = _fake_litellm(monkeypatch, completion=lambda **kwargs: _response("no rating here"))
+
+    result = ApiAdapter().run("prompt", workdir=tmp_path)
+
+    assert result.status == "success"
+    assert result.raw_report == "no rating here"
+    assert len(fake.calls) == api.MAX_ATTEMPTS

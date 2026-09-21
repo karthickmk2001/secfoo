@@ -105,10 +105,10 @@ class RunRepository:
         # rollback-journal's writer lock. Requires local disk, not
         # NFS/EFS-backed storage, for the portal host.
         self._conn.execute("PRAGMA journal_mode = WAL")
-        self._conn.executescript(SCHEMA_PATH.read_text())
+        self._conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
         self._conn.commit()
         self._migrate()
-        self._conn.executescript(SCHEMA_INDEXES_PATH.read_text())
+        self._conn.executescript(SCHEMA_INDEXES_PATH.read_text(encoding="utf-8"))
         self._conn.commit()
 
     def _migrate(self) -> None:
@@ -252,6 +252,9 @@ class RunRepository:
         low_count: int = 0,
         info_count: int = 0,
         assessment_id: int | None = None,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        cost_usd: float | None = None,
     ) -> None:
         """Inserts a run that already fully happened elsewhere, in one
         step, keyed by a caller-supplied `run_uuid` rather than minting a
@@ -263,12 +266,14 @@ class RunRepository:
         self._conn.execute(
             "INSERT INTO runs (run_uuid, project_id, skill_id, skill_name, agent_id, confluence_urls, "
             "status, exit_code, started_at, finished_at, duration_seconds, report_path, "
-            "critical_count, high_count, medium_count, low_count, info_count, assessment_id) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "critical_count, high_count, medium_count, low_count, info_count, assessment_id, "
+            "input_tokens, output_tokens, cost_usd) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 run_uuid, project_id, skill_id, skill_name, agent_id, json.dumps(confluence_urls),
                 status, exit_code, started_at, finished_at, duration_seconds, report_path,
                 critical_count, high_count, medium_count, low_count, info_count, assessment_id,
+                input_tokens, output_tokens, cost_usd,
             ),
         )
         self._conn.commit()
@@ -562,7 +567,7 @@ class RunRepository:
         path = Path(row["report_path"])
         if not path.exists():
             return None, None
-        rating = extract_overall_risk_rating(path.read_text())
+        rating = extract_overall_risk_rating(path.read_text(encoding="utf-8", errors="replace"))
         if rating is None:
             return None, None
         risk = "high-risk" if rating == "high" else "moderate"

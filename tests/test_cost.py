@@ -177,3 +177,37 @@ def test_overview_spend_is_unknown_not_zero_when_no_run_has_a_cost(db):
     overview = TestClient(create_app()).get("/")
     assert "$0.00" not in overview.text
     assert "AI spend" in overview.text
+
+
+def test_create_completed_run_keeps_usage_for_portal_ingestion(tmp_path):
+    repo = RunRepository(db_path=tmp_path / "db.sqlite")
+    project_id = repo.upsert_project("id-1", "P1", "local")
+    repo.create_completed_run(
+        run_uuid="remote-1", project_id=project_id, skill_id="sast", skill_name="SAST", agent_id="api",
+        confluence_urls=[], status="success", exit_code=0, started_at="2026-09-21T00:00:00+00:00",
+        finished_at=None, duration_seconds=1.0, report_path=None,
+        input_tokens=1000, output_tokens=200, cost_usd=0.25,
+    )
+    run = repo.get_run("remote-1")
+    repo.close()
+    assert (run.input_tokens, run.output_tokens, run.cost_usd) == (1000, 200, 0.25)
+
+
+def test_cost_command_filters_by_project(db):
+    _seed(agent_id="api", project="acme/checkout", cost=0.25)
+    _seed(agent_id="api", project="acme/billing", cost=5.0)
+
+    result = runner.invoke(app, ["cost", "--project", "checkout"])
+
+    assert result.exit_code == 0
+    assert "$0.25" in result.stdout
+    assert "$5.00" not in result.stdout
+
+
+def test_cost_command_rejects_ambiguous_or_unknown_project(db):
+    _seed(agent_id="api", project="acme/checkout", cost=0.25)
+    _seed(agent_id="api", project="acme/billing", cost=5.0)
+
+    assert runner.invoke(app, ["cost", "--project", "acme"]).exit_code == 1
+    unknown = runner.invoke(app, ["cost", "--project", "nope"])
+    assert "No project matches" in unknown.stdout
