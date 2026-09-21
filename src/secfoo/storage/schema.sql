@@ -63,10 +63,14 @@ CREATE TABLE IF NOT EXISTS runs (
     medium_count      INTEGER NOT NULL DEFAULT 0,
     low_count         INTEGER NOT NULL DEFAULT 0,
     info_count        INTEGER NOT NULL DEFAULT 0,
+    -- AI spend reported by the agent (see AgentAdapter.extract_usage).
+    -- NULL means the agent doesn't report it, not zero.
+    input_tokens      INTEGER,
+    output_tokens     INTEGER,
+    cost_usd          REAL,
     -- Set once `secfoo cloud` has pushed this run to the enterprise
     -- portal. NULL means never synced (offline, or no `cloud login` yet).
-    cloud_synced_at   TEXT,
-    cost_usd          REAL
+    cloud_synced_at   TEXT
 );
 
 -- Files manually uploaded to an assessment (AI-BOM inventories, or other

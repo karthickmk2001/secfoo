@@ -37,6 +37,9 @@ class RunRecord:
     low_count: int = 0
     info_count: int = 0
     cloud_synced_at: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cost_usd: float | None = None
     project_display_name: str | None = None
     cost_usd: float | None = None
 
@@ -155,3 +158,13 @@ class SastFindingRecord:
     description: str | None = None
     recommendation: str | None = None
     project_display_name: str | None = None
+
+
+@dataclass(frozen=True)
+class CostRow:
+    label: str
+    runs: int
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+    unpriced_runs: int

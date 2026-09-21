@@ -8,7 +8,7 @@ from secfoo.cli import app
 from secfoo.runner import RunOutcome
 from secfoo.settings import Defaults, MCPServerConfig, SecfooConfig
 from secfoo.skills.loader import load_all_skills
-from secfoo.storage.models import ProjectRecord
+from secfoo.storage.models import CostRow, ProjectRecord
 
 runner = CliRunner()
 
@@ -247,13 +247,17 @@ class _FakeRepoWithCost:
         self.requested_project_id = project_id
         return self._total
 
+    def cost_summary(self, *, group_by, project_id=None, since=None):
+        self.requested_project_id = project_id
+        return [CostRow(label="secfoo", runs=1, input_tokens=100, output_tokens=10, cost_usd=self._total, unpriced_runs=0)]
+
 
 def test_cost_command_prints_total_spend(monkeypatch):
     fake = _FakeRepoWithCost(total=1.2345)
     monkeypatch.setattr("secfoo.cli.RunRepository", lambda *a, **kw: fake)
     result = runner.invoke(app, ["cost"])
     assert result.exit_code == 0
-    assert "$1.2345" in result.stdout
+    assert "$1.23" in result.stdout
     assert fake.requested_project_id is None
 
 
@@ -266,7 +270,7 @@ def test_cost_command_filters_by_matching_project(monkeypatch):
     monkeypatch.setattr("secfoo.cli.RunRepository", lambda *a, **kw: fake)
     result = runner.invoke(app, ["cost", "--project", "acme"])
     assert result.exit_code == 0
-    assert "$0.5000" in result.stdout
+    assert "$0.50" in result.stdout
     assert fake.requested_project_id == 7
 
 
