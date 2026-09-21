@@ -27,3 +27,12 @@ def test_extract_report_result_key_fallback():
 def test_extract_report_non_json_passthrough():
     adapter = GeminiAdapter()
     assert adapter.extract_report("plain text") == "plain text"
+
+
+def test_run_success_leaves_cost_usd_none(fake_popen, tmp_path):
+    """Gemini CLI's JSON output has no reported spend figure -- cost_usd
+    must stay None rather than a guessed/estimated value."""
+    fake_popen(returncode=0, stdout=json.dumps({"response": "R"}), stderr="")
+    adapter = GeminiAdapter()
+    result = adapter.run("hi", workdir=tmp_path)
+    assert result.cost_usd is None

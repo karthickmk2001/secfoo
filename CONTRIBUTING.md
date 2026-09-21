@@ -47,6 +47,12 @@ needs to supply:
   non-interactively
 - `extract_report(stdout)` — optional, only for a CLI that wraps its
   answer in a JSON envelope rather than printing the report directly
+- `extract_cost(stdout)` — optional, only if the CLI itself reports a USD
+  spend figure (e.g. Claude Code's `total_cost_usd` in `--output-format
+  json`; see `ClaudeAdapter`). Leave it unset if the CLI doesn't report
+  cost — don't estimate from token counts, since there's no pricing table
+  in this repo to keep current. `secfoo cost` shows `-` for runs whose
+  adapter doesn't provide this.
 
 Then register the class in `ADAPTERS` in
 `src/secfoo/agents/registry.py`. `secfoo agents`, `--agent`, and the web

@@ -61,8 +61,11 @@ $env:SECFOO_MODEL = "openai/gpt-4o-mini"
 secfoo run --skill security-architecture-review --agent secfoo
 ```
 
-LiteLLM-reported spend is stored per run and can be reviewed from the
-dashboard or queried from the CLI:
+Spend is stored per run and can be reviewed from the dashboard or queried
+from the CLI, for any agent whose CLI reports its own cost -- currently
+the built-in `secfoo` agent (via LiteLLM) and `claude` (via Claude Code's
+own `total_cost_usd`); Cursor, Antigravity, and Gemini CLI don't report a
+spend figure yet, so those runs show `-`:
 
 ```bash
 secfoo cost

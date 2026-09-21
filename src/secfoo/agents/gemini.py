@@ -39,3 +39,10 @@ class GeminiAdapter(AgentAdapter):
         except json.JSONDecodeError:
             return stdout
         return payload.get("response", payload.get("result", stdout))
+
+    # No extract_cost() override: Gemini CLI's JSON output doesn't report a
+    # USD spend figure (unlike Claude Code's total_cost_usd), and deriving
+    # one from token counts would need a pricing table we have no reliable
+    # way to keep current -- see AgentAdapter.extract_cost()'s docstring for
+    # why that tradeoff isn't worth it. secfoo cost will show `-` for runs
+    # through this adapter until Gemini CLI reports cost itself.
