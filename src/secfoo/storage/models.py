@@ -41,6 +41,7 @@ class RunRecord:
     output_tokens: int | None = None
     cost_usd: float | None = None
     project_display_name: str | None = None
+    cost_usd: float | None = None
 
 
 @dataclass(frozen=True)

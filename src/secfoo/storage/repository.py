@@ -251,18 +251,13 @@ class RunRepository:
         medium_count: int = 0,
         low_count: int = 0,
         info_count: int = 0,
+        cost_usd: float | None = None,
         assessment_id: int | None = None,
         input_tokens: int | None = None,
         output_tokens: int | None = None,
         cost_usd: float | None = None,
     ) -> None:
-        """Inserts a run that already fully happened elsewhere, in one
-        step, keyed by a caller-supplied `run_uuid` rather than minting a
-        new one. Used by the enterprise portal's ingestion API to
-        replicate a run the CLI already ran and completed locally --
-        unlike `create_run()` + `complete_run()`, which model a run
-        actually starting and finishing in this process.
-        """
+        """Insert a run that already completed in another process."""
         self._conn.execute(
             "INSERT INTO runs (run_uuid, project_id, skill_id, skill_name, agent_id, confluence_urls, "
             "status, exit_code, started_at, finished_at, duration_seconds, report_path, "
@@ -274,6 +269,12 @@ class RunRepository:
                 status, exit_code, started_at, finished_at, duration_seconds, report_path,
                 critical_count, high_count, medium_count, low_count, info_count, assessment_id,
                 input_tokens, output_tokens, cost_usd,
+            "critical_count, high_count, medium_count, low_count, info_count, cost_usd, assessment_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                run_uuid, project_id, skill_id, skill_name, agent_id, json.dumps(confluence_urls),
+                status, exit_code, started_at, finished_at, duration_seconds, report_path,
+                critical_count, high_count, medium_count, low_count, info_count, cost_usd, assessment_id,
             ),
         )
         self._conn.commit()
@@ -302,6 +303,7 @@ class RunRepository:
             "report_path = ?, prompt_path = ?, stderr_excerpt = ?, critical_count = ?, high_count = ?, "
             "medium_count = ?, low_count = ?, info_count = ?, input_tokens = ?, output_tokens = ?, "
             "cost_usd = ? WHERE run_uuid = ?",
+            "medium_count = ?, low_count = ?, info_count = ?, cost_usd = ? WHERE run_uuid = ?",
             (
                 status,
                 exit_code,
@@ -353,6 +355,15 @@ class RunRepository:
         confluence_urls = json.loads(data.pop("confluence_urls") or "[]")
         project_display_name = data.pop("display_name", None)
         return RunRecord(confluence_urls=confluence_urls, project_display_name=project_display_name, **data)
+
+    def total_cost_usd(self, *, project_id: int | None = None) -> float:
+        query = "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM runs WHERE 1=1"
+        params: list[object] = []
+        if project_id is not None:
+            query += " AND project_id = ?"
+            params.append(project_id)
+        row = self._conn.execute(query, params).fetchone()
+        return float(row["total"])
 
     def list_runs(
         self,

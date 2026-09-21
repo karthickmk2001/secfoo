@@ -19,6 +19,7 @@ def overview(request: Request):
         third_party_count = repo.count_assessments(assessment_type="third_party")
         responsible_ai_count = repo.count_assessments_with_responsible_ai_risk()
         models_count, tools_count = repo.ai_bom_counts_total()
+        total_cost_usd = repo.total_cost_usd()
         top_findings = build_top_findings(repo)
         cost_by_agent = repo.cost_summary(group_by="agent")
 
@@ -48,6 +49,7 @@ def overview(request: Request):
             "responsible_ai_count": responsible_ai_count,
             "models_count": models_count,
             "tools_count": tools_count,
+            "total_cost_usd": total_cost_usd,
             "top_findings": top_findings,
             "cost_by_agent": cost_by_agent,
             # None (rendered "-") until at least one run has a known cost,

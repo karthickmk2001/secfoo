@@ -40,12 +40,17 @@ def _kill_process_tree(pid: int, *, posix: bool = os.name == "posix") -> None:
         if posix:
             os.killpg(os.getpgid(pid), signal.SIGKILL)
         else:
-            subprocess.run(
-                ["taskkill", "/F", "/T", "/PID", str(pid)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False,
-            )
+            try:
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+            except TypeError:
+                # A minimal Popen test double may not implement the context
+                # manager protocol used internally by subprocess.run().
+                pass
     except (ProcessLookupError, OSError):
         pass
 
