@@ -196,7 +196,7 @@ def _run_single_skill(
         report_dir = run_dir(run_uuid)
         report_dir.mkdir(parents=True, exist_ok=True)
         prompt_path = report_dir / "prompt.md"
-        prompt_path.write_text(prompt)
+        prompt_path.write_text(prompt, encoding="utf-8")
 
         if on_skill_start:
             on_skill_start(skill.name)
@@ -207,11 +207,11 @@ def _run_single_skill(
         if on_skill_complete:
             on_skill_complete(skill.name, result.status)
 
-        (report_dir / "stdout.log").write_text(result.stdout)
-        (report_dir / "stderr.log").write_text(result.stderr)
+        (report_dir / "stdout.log").write_text(result.stdout, encoding="utf-8")
+        (report_dir / "stderr.log").write_text(result.stderr, encoding="utf-8")
         report_path = report_dir / "report.md"
         report_text = strip_preamble(result.raw_report)
-        report_path.write_text(report_text)
+        report_path.write_text(report_text, encoding="utf-8")
         severity = count_severities(report_text)
 
         repo.complete_run(
@@ -227,6 +227,7 @@ def _run_single_skill(
             medium_count=severity.medium,
             low_count=severity.low,
             info_count=severity.info,
+            cost_usd=result.cost_usd,
         )
 
         if result.status == "success":

@@ -137,7 +137,7 @@ def test_push_run_posts_expected_payload_shape(fake_urlopen):
         id=1, run_uuid="u1", project_id=1, skill_id="sast", skill_name="SAST", agent_id="claude",
         confluence_urls=[], status="success", exit_code=0, started_at="t1", finished_at="t2",
         duration_seconds=1.0, report_path=None, prompt_path=None, stderr_excerpt=None,
-        project_display_name="acme/app",
+        project_display_name="acme/app", cost_usd=0.0123,
     )
 
     cloud.push_run(
@@ -154,6 +154,7 @@ def test_push_run_posts_expected_payload_shape(fake_urlopen):
     assert body["project"]["identifier"] == "https://github.com/acme/app"
     assert body["project"]["kind"] == "github"
     assert body["run"]["skill_id"] == "sast"
+    assert body["run"]["cost_usd"] == 0.0123
     assert body["report_markdown"] == "# Report\n"
 
 

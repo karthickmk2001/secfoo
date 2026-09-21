@@ -94,6 +94,7 @@ class AgentId(str, Enum):
     CURSOR = "agent"
     ANTIGRAVITY = "agy"
     GEMINI = "gemini"
+    SECFOO = "secfoo"
 
 
 class DepthId(str, Enum):
@@ -304,6 +305,26 @@ def run(
         raise typer.Exit(code=1)
 
 
+@app.command()
+def cost(
+    project: Optional[str] = typer.Option(None, "--project", "-p", help="Filter by project name/URL substring."),
+) -> None:
+    """Show recorded AI spend for runs."""
+    with RunRepository() as repo:
+        project_id = None
+        if project:
+            matches = [
+                p for p in repo.list_projects()
+                if project.lower() in p.display_name.lower() or project.lower() in p.identifier.lower()
+            ]
+            if not matches:
+                console.print(f"[yellow]No project matches {project!r}.[/]")
+                return
+            project_id = matches[0].id
+        total = repo.total_cost_usd(project_id=project_id)
+    console.print(f"AI spend: ${total:.4f}")
+
+
 @app.command(name="list")
 def list_runs(
     project: Optional[str] = typer.Option(None, "--project", "-p", help="Filter by project name/URL substring."),
@@ -334,6 +355,7 @@ def list_runs(
     table.add_column("Project")
     table.add_column("Skill")
     table.add_column("Agent")
+    table.add_column("Cost")
     table.add_column("Status")
     table.add_column("Run ID")
 
@@ -344,6 +366,7 @@ def list_runs(
             r.project_display_name or "",
             r.skill_name,
             r.agent_id,
+            f"${r.cost_usd:.4f}" if r.cost_usd is not None else "-",
             f"[{style}]{r.status}[/]",
             r.run_uuid,
         )
