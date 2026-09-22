@@ -21,6 +21,7 @@ from secfoo.aibom import AIBOMParseError, parse_ai_bom
 from secfoo.attachments import infer_attachment_kind
 from secfoo.cloud import CloudConfig, CloudError
 from secfoo.config import CLOUD_CONFIG_PATH, attachment_dir
+from secfoo.cost import format_cost, format_tokens
 from secfoo.runner import _project_display_name, execute_runs
 from secfoo.settings import CONFIG_PATH, ConfigError, load_config
 from secfoo.skills.loader import load_all_skills
@@ -94,7 +95,9 @@ class AgentId(str, Enum):
     CURSOR = "agent"
     ANTIGRAVITY = "agy"
     GEMINI = "gemini"
+    API = "api"
     SECFOO = "secfoo"
+    CODEX = "codex"
 
 
 class DepthId(str, Enum):
@@ -289,40 +292,30 @@ def run(
     table.add_column("Skill")
     table.add_column("Status")
     table.add_column("Duration")
+    table.add_column("Cost", justify="right")
     table.add_column("Run ID")
 
     any_failed = False
     for outcome in outcomes:
         style = _STATUS_STYLE.get(outcome.status, "white")
         duration = f"{outcome.duration_seconds:.1f}s" if outcome.duration_seconds else "-"
-        table.add_row(outcome.skill_name, f"[{style}]{outcome.status}[/]", duration, outcome.run_uuid)
+        table.add_row(
+            outcome.skill_name,
+            f"[{style}]{outcome.status}[/]",
+            duration,
+            format_cost(outcome.cost_usd),
+            outcome.run_uuid,
+        )
         if outcome.status != "success":
             any_failed = True
 
     console.print(table)
+    priced = [o.cost_usd for o in outcomes if o.cost_usd is not None]
+    if priced:
+        console.print(f"AI spend for this run: [bold]{format_cost(sum(priced))}[/]")
     console.print("Run [bold]secfoo serve[/] to view full reports in your browser.")
     if any_failed:
         raise typer.Exit(code=1)
-
-
-@app.command()
-def cost(
-    project: Optional[str] = typer.Option(None, "--project", "-p", help="Filter by project name/URL substring."),
-) -> None:
-    """Show recorded AI spend for runs."""
-    with RunRepository() as repo:
-        project_id = None
-        if project:
-            matches = [
-                p for p in repo.list_projects()
-                if project.lower() in p.display_name.lower() or project.lower() in p.identifier.lower()
-            ]
-            if not matches:
-                console.print(f"[yellow]No project matches {project!r}.[/]")
-                return
-            project_id = matches[0].id
-        total = repo.total_cost_usd(project_id=project_id)
-    console.print(f"AI spend: ${total:.4f}")
 
 
 @app.command(name="list")
@@ -355,8 +348,8 @@ def list_runs(
     table.add_column("Project")
     table.add_column("Skill")
     table.add_column("Agent")
-    table.add_column("Cost")
     table.add_column("Status")
+    table.add_column("Cost", justify="right")
     table.add_column("Run ID")
 
     for r in runs:
@@ -366,8 +359,8 @@ def list_runs(
             r.project_display_name or "",
             r.skill_name,
             r.agent_id,
-            f"${r.cost_usd:.4f}" if r.cost_usd is not None else "-",
             f"[{style}]{r.status}[/]",
+            format_cost(r.cost_usd),
             r.run_uuid,
         )
     console.print(table)
@@ -392,7 +385,7 @@ def show(
 
     console.print(f"[bold]{record.skill_name}[/] via {record.agent_id} — status: {record.status}")
     if record.report_path and Path(record.report_path).exists():
-        console.print(Path(record.report_path).read_text())
+        console.print(Path(record.report_path).read_text(encoding="utf-8", errors="replace"))
     else:
         console.print("[yellow]No report content available for this run.[/]")
 
@@ -425,6 +418,77 @@ def agents() -> None:
         style = "green" if available else "red"
         table.add_row(agent_id, adapter.binary, f"[{style}]{'yes' if available else 'no'}[/]")
     console.print(table)
+
+
+class CostGroup(str, Enum):
+    AGENT = "agent"
+    SKILL = "skill"
+    PROJECT = "project"
+
+
+@app.command()
+def cost(
+    by: CostGroup = typer.Option(CostGroup.AGENT, "--by", help="Group spend by agent, skill, or project."),
+    since: Optional[str] = typer.Option(
+        None, "--since", help="Only count runs started on or after this date, YYYY-MM-DD.", callback=_validate_date
+    ),
+    project: Optional[str] = typer.Option(
+        None, "--project", "-p", help="Only count one project (name/URL substring)."
+    ),
+) -> None:
+    """Show AI spend (tokens and cost) across past runs."""
+    with RunRepository() as repo:
+        project_id = None
+        if project:
+            needle = project.lower()
+            matches = [
+                p for p in repo.list_projects()
+                if needle in p.display_name.lower() or needle in p.identifier.lower()
+            ]
+            if not matches:
+                console.print(f"[yellow]No project matches {project!r}.[/]")
+                return
+            if len(matches) > 1:
+                names = ", ".join(p.display_name for p in matches)
+                err_console.print(f"[red]{project!r} matches several projects ({names}) -- be more specific.[/]")
+                raise typer.Exit(code=1)
+            project_id = matches[0].id
+        rows = repo.cost_summary(group_by=by.value, since=since, project_id=project_id)
+
+    if not rows:
+        console.print("No runs found.")
+        return
+
+    table = Table(title=f"AI spend by {by.value}" + (f" since {since}" if since else ""))
+    table.add_column(by.value.capitalize())
+    table.add_column("Runs", justify="right")
+    table.add_column("Input tokens", justify="right")
+    table.add_column("Output tokens", justify="right")
+    table.add_column("Cost", justify="right")
+    for row in rows:
+        table.add_row(
+            row.label,
+            str(row.runs),
+            format_tokens(row.input_tokens),
+            format_tokens(row.output_tokens),
+            format_cost(row.cost_usd) if row.unpriced_runs < row.runs else "-",
+        )
+    table.add_section()
+    table.add_row(
+        "[bold]Total[/]",
+        str(sum(r.runs for r in rows)),
+        format_tokens(sum(r.input_tokens for r in rows)),
+        format_tokens(sum(r.output_tokens for r in rows)),
+        f"[bold]{format_cost(sum(r.cost_usd for r in rows))}[/]",
+    )
+    console.print(table)
+
+    unpriced = sum(r.unpriced_runs for r in rows)
+    if unpriced:
+        console.print(
+            f"[yellow]{unpriced} run(s) have no cost recorded[/] -- their agent doesn't report it "
+            "(cursor, agy), or they ran before cost tracking existed."
+        )
 
 
 @assessment_app.command(name="create")
@@ -1131,7 +1195,7 @@ def config_init(
         err_console.print(f"[yellow]{CONFIG_PATH} already exists.[/] Use --force to overwrite it.")
         raise typer.Exit(code=1)
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(CONFIG_EXAMPLE_PATH.read_text())
+    CONFIG_PATH.write_text(CONFIG_EXAMPLE_PATH.read_text(encoding="utf-8"), encoding="utf-8")
     console.print(f"Wrote {CONFIG_PATH}. Edit it, then run [bold]secfoo mcp list[/] to confirm.")
 
 

@@ -65,6 +65,17 @@ class AgentResult:
     timed_out: bool
     status: Status
     raw_report: str
+    # AI spend for this run, when the agent reports it. None means unknown
+    # (the CLI doesn't expose it), not zero.
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cost_usd: float | None = None
+
+
+@dataclass(frozen=True)
+class Usage:
+    input_tokens: int | None = None
+    output_tokens: int | None = None
     cost_usd: float | None = None
 
 
@@ -90,6 +101,9 @@ class AgentAdapter(ABC):
         with a value the CLI itself reports -- never a token-count estimate,
         since we have no reliable, current pricing table to convert with."""
         return None
+    def extract_usage(self, stdout: str) -> Usage:
+        """Pull token counts / cost out of raw stdout. Default: unknown."""
+        return Usage()
 
     def run(self, prompt: str, *, workdir: Path, timeout: int | None = None) -> AgentResult:
         if not self.is_available():
@@ -125,6 +139,7 @@ class AgentAdapter(ABC):
             stdout, stderr = proc.communicate(timeout=effective_timeout)
             duration = time.monotonic() - started
             status: Status = "success" if proc.returncode == 0 else "failed"
+            usage = self.extract_usage(stdout)
             return AgentResult(
                 agent=self.name,
                 exit_code=proc.returncode,
@@ -135,6 +150,9 @@ class AgentAdapter(ABC):
                 status=status,
                 raw_report=self.extract_report(stdout) if status == "success" else "",
                 cost_usd=self.extract_cost(stdout) if status == "success" else None,
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                cost_usd=usage.cost_usd,
             )
         except subprocess.TimeoutExpired:
             _kill_process_tree(proc.pid)

@@ -36,3 +36,22 @@ def test_run_success_leaves_cost_usd_none(fake_popen, tmp_path):
     adapter = GeminiAdapter()
     result = adapter.run("hi", workdir=tmp_path)
     assert result.cost_usd is None
+def test_extract_usage_sums_tokens_across_models_without_cost():
+    stdout = json.dumps({
+        "response": "report",
+        "stats": {
+            "models": {
+                "gemini-pro": {"tokens": {"prompt": 1000, "candidates": 200}},
+                "gemini-flash": {"tokens": {"prompt": 50, "candidates": 5}},
+            }
+        },
+    })
+    usage = GeminiAdapter().extract_usage(stdout)
+    assert usage.input_tokens == 1050
+    assert usage.output_tokens == 205
+    assert usage.cost_usd is None
+
+
+def test_extract_usage_unknown_without_stats():
+    assert GeminiAdapter().extract_usage(json.dumps({"response": "r"})).input_tokens is None
+    assert GeminiAdapter().extract_usage("not json").input_tokens is None
